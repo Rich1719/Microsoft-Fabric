@@ -9,7 +9,7 @@ Dieses Repository dokumentiert unsere skalierbare Daten-Pipeline basierend auf d
 
 Der Datenfluss ist so konzipiert, dass er Rohdaten sicher speichert, sie zentral bereinigt und anschließend maßgeschneidert an die Endkonsumenten (Business Intelligence und Data Science) verteilt.
 
-
+```
 [  BRONZE LAYER ]  --> Rohdaten-Ingest (Append-only, Parquet/Delta, inkl. Fehlern & Nulls)
 │
 ▼ (Deduplizierung, Type-Casting & Join über sales_order_id + product_id)
@@ -22,10 +22,10 @@ Der Datenfluss ist so konzipiert, dass er Rohdaten sicher speichert, sie zentral
 │
 ▼ (DirectQuery / Import)
 [  POWER BI ]      --> Sternschema (Star Schema), DAX-Measures & optimiertes Reporting
-
+```
 ---
 
-## 🛠️ Die Pipeline-Phasen im Detail
+##  Die Pipeline-Phasen im Detail
 
 ### 1.  Bronze Layer (Raw Ingest)
 * **Charakteristik:** Unveränderte Rohdaten direkt aus den Quellsystemen (ERP, CRM).
