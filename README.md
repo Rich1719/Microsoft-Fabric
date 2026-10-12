@@ -1,7 +1,21 @@
 # Microsoft-Fabric
-# End-to-End Data Pipeline: Medallion Architecture (Bronze  Power BI)
+# End-to-End Data Pipeline: Medallion Architecture (Databricks retail_org `--->` Power BI)
 
-Dieses Repository dokumentiert unsere skalierbare Daten-Pipeline basierend auf dem **Medallion-Lakehouse-Design**. Das Projekt bildet den gesamten Lebenszyklus der Daten ab: Vom unbereinigten Daten-Ingest im **Bronze Layer** über die differenzierte Aufbereitung im **Silver Layer** bis hin zur performanten Modellierung im **Gold Layer** für **Power BI** und **Machine Learning (ML)**.
+##  Projektkontext & Datenherkunft
+Dieses Projekt nutzt die Datenstrukturen aus der Databricks-Beispielorganisation **`retail_org`** (einschließlich transaktionaler Verkaufsdaten und Marketing-Promotions). Die Pipeline bildet den gesamten Lebenszyklus dieser Daten ab: Vom unbereinigten Daten-Ingest im **Bronze Layer** über die differenzierte Aufbereitung im **Silver Layer** bis hin zur performanten Modellierung im **Gold Layer** für **Power BI** und **Machine Learning (ML)**.
+
+---
+
+##  Ziel des Projektes
+Das Hauptziel dieses Projekts ist es, die operationalen, verstreuten Rohdaten der Verkaufsstellen (`retail_org`) in strategische Unternehmenswerte zu verwandeln. Dabei löst das Projekt ein Kernproblem moderner Datenarchitekturen: **Die gleichzeitige, widerspruchsfreie Bereitstellung derselben Datenbasis für zwei unterschiedliche Business-Zwecke:**
+
+1. **Umsatz- und Kampagnenanalyse (Business Intelligence):**
+   * **Ziel:** Erstellung eines performanten, fehlerfreien **Power BI Dashboards** im Sternschema.
+   * **Business-Value:** Das Management erhält sofortigen Einblick in die Profitabilität, den Brutto- vs. Nettoumsatz sowie den Erfolg von Marketing-Promotions, ohne durch Systemfehler (`NaN`) oder leere Filterzeilen (`Null`) behindert zu werden.
+
+2. **Kaufverhaltens- und Nachfrageprognose (Machine Learning):**
+   * **Ziel:** Bereitstellung mathematisch unverfälschter Datensätze für Data Scientists.
+   * **Business-Value:** Vorhersagemodelle (z. B. für Absatzprognosen oder Churn-Analysen) können exakt lernen, wie Kunden auf Rabatte reagieren. Da fehlende Promotionswerte (`Null`) als wichtiges statistisches Signal erhalten bleiben, wird eine künstliche Verzerrung des Modells (Bias) verhindert.
 
 ---
 
@@ -47,53 +61,7 @@ Für das Reporting werden die Daten im Gold Layer final in ein performantes **St
   * Verwaiste oder fehlende IDs werden mit Standard-Einträgen abgefangen. 
   * Wenn ein Kauf ohne Promotion stattfand, wird die `promotion_id` zu `"Keine Promotion"` transformiert. Dadurch entstehen in Power BI saubere Slicer (Filter), ohne dass leere Zeilen die Optik stören.
 * **Datumsdimension (`Dim_Date`):** Das Feld `order_date` wird mit einer zentralen Kalendertabelle verknüpft, um Time-Intelligence-Funktionen (YoY, YTD) in Power BI stabil zu halten.
-
----
-
-##  PySpark Transformations-Code (Kernlogik)
-
-```python
-from pyspark.sql.functions import col, round, when, coalesce
-
-# 1. Auflösung doppelter Join-Spalten & Selektion
-cleaned_df = sales_with_promos.select(
-    sales_base["sales_order_id"].alias("sales_order_id"),
-    col("product_id"),
-    col("product_name"),
-    col("unit_price"),
-    col("quantity_ordered"),
-    col("promotion_id"),
-    col("promotion_discount")
-)
-
-# 2. Basis-Berechnung (Silver Standard)
-final_df = cleaned_df.withColumn(
-    "gross_revenue", 
-    round(col("quantity_ordered") * col("unit_price"), 2).cast("decimal(18,2)")
-)
-
-# --- PFAD A: MACHINE LEARNING (Rohzustand bleibt für Features erhalten) ---
-ml_df = final_df.withColumn(
-    "net_revenue",
-    round(col("gross_revenue") - (col("quantity_ordered") * coalesce(col("promotion_discount"), col("gross_revenue") * 0)), 2).cast("decimal(18,2)")
-)
-
-# --- PFAD B: GOLD LAYER / POWER BI (Bereitstellung des Sternschemas) ---
-bi_gold_df = ml_df.withColumn(
-    "promotion_id", 
-    when(col("promotion_id").isNull(), "Keine Promotion").otherwise(col("promotion_id"))
-).withColumn(
-    "promotion_discount", 
-    coalesce(col("promotion_discount"), col("unit_price") * 0)
-)
-
- Best Practices für das Power BI Frontend
-
-1. Beziehungen: Nutze ausschließlich 1:n (One-to-Many) Beziehungen von den Dimensionstabellen zur Faktentabelle. Vermeide bidirektionale Filter, um die Performance zu maximieren.
-2. DAX statt Spalten: Berechne hochaggregierte Kennzahlen (wie den Gesamten Nettoumsatz über alle Filialen) nicht als berechnete Spalte, sondern dynamisch als DAX-Measure:dax
-Total Net Revenue = SUM(Fact_Sales[net_revenue])
-Verwende Code mit Vorsicht.
-3. Ausblenden von Schlüsseln: Blende technische IDs (z. B. product_key, customer_key) in der Berichtsansicht für Endanwender aus. Für Filter und Zeilenbeschriftungen werden ausschließlich die Attribute aus den Dimensionstabellen (Dim_Product[product_name]) genutzt.
+----
 
 
 
